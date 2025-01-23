@@ -1,46 +1,46 @@
-# final_project/train.py
-
+# train.py
+import torch
+import numpy as np
 import wandb
 import gym
-# If you use stable_baselines3:
-# from stable_baselines3 import PPO
 
-from .enviorment import ElectricityMarketEnv
-from .utils import plot_results  # Example optional function to plot or do something.
+from agent import Agent
+from environment import BatteryEnv
 
+def train(config):
+    # Create environment
+    env = BatteryEnv(config)
 
-def run_training(config):
-    """
-    Creates the environment, sets up the RL agent,
-    runs training, and returns training results.
-    """
+    # Update config with dimension info for the agent
+    config["state_dim"] = env.observation_space.shape[0]
+    config["action_dim"] = env.action_space.shape[0]
 
-    # 1. Create the custom environment
-    env = ElectricityMarketEnv(
-        battery_capacity=config["environment"]["battery_capacity"],
-        demand_params=config["environment"]["demand_params"],
-        price_params=config["environment"]["price_params"],
-        max_steps=config["environment"]["max_steps"]
-    )
+    agent = Agent(config)
 
-    # 2. (Optional) Wrap environment with Monitor or VecEnv if desired
-    # env = gym.wrappers.Monitor(env, "./videos", force=True)
+    all_episode_rewards = []
 
-    # 3. Initialize your RL model. Example with PPO:
-    # model = PPO("MlpPolicy", env, verbose=1, learning_rate=config["training"]["lr"], ...)
-    # For a custom agent, you would code your networks in `agent.py` or in this file.
+    for episode in range(config["episodes"]):
+        state = env.reset()
+        done = False
+        episode_reward = 0.0
 
-    # model = ...
+        while not done:
+            action = agent.get_action(state)  # get from policy
+            next_state, reward, done, _ = env.step(action)
 
-    # 4. Train the RL agent
-    # model.learn(total_timesteps=config["training"]["timesteps"])
+            agent.store_outcome(reward, done)
+            episode_reward += reward
+            state = next_state
 
-    # 5. Evaluate or test the trained model (optional, or put in separate function)
-    # test_rewards = evaluate_model(model, env, episodes=10)
-    # wandb.log({"test_reward_mean": sum(test_rewards) / len(test_rewards)})
+        # End of episode: do one update
+        agent.finish_episode()
 
-    # 6. Return some summary data
-    return {
-        "final_profit": 1234.56  # This is just a placeholder
-    }
+        # Book-keeping
+        all_episode_rewards.append(episode_reward)
+        wandb.log({
+            "Episode": episode,
+            "Episode Reward": episode_reward
+        })
 
+    env.close()
+    return all_episode_rewards

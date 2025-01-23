@@ -13,28 +13,20 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
-    # Load main config
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
-
-    # Load W&B config (safely handle missing file)
     try:
         with open(args.wandb_config, "r") as f:
             wandb_config = yaml.safe_load(f)["wandb"]
     except FileNotFoundError:
         raise FileNotFoundError(f"W&B config file not found at {args.wandb_config}.")
 
-    # Login to W&B
     wandb.login(key=wandb_config["api_key"])
-
-    # Set seeds
     set_global_seed(args.seed)
-
-    # Initialize W&B
     wandb.init(
-        project=wandb_config["project_name"],
-        config=config,
-        name=wandb_config.get("run_name", "default-run-name"),
+        project=wandb_config["project_name"]  # ,
+        #  config=config,
+        #  name=wandb_config.get("run_name", "default-run-name"),
     )
 
     # Merge wandb.config (for easy hyperparameter changes from the UI)
