@@ -13,3 +13,8 @@ def set_global_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+def print_welcome():
+    print('*'*10)
+    print('Welcome to SDRML_Project')
+    print('*'*10)

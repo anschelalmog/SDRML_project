@@ -1,9 +1,8 @@
-# main.py
 import yaml
 import wandb
 import argparse
-from src.train import train
-from src.utils import set_global_seed
+import src
+
 
 def main():
     # Command-line args (optional)
@@ -22,7 +21,7 @@ def main():
         raise FileNotFoundError(f"W&B config file not found at {args.wandb_config}.")
 
     wandb.login(key=wandb_config["api_key"])
-    set_global_seed(args.seed)
+    src.utils.set_global_seed(args.seed)
     wandb.init(
         project=wandb_config["project_name"]  # ,
         #  config=config,
@@ -34,7 +33,8 @@ def main():
         config[k] = v
 
     # Start training
-    train(config)
+    src.train(config)
 
 if __name__ == "__main__":
+    src.print_welcome()
     main()
