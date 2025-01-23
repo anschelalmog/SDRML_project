@@ -86,25 +86,26 @@ class Agent:
         One-step actor-critic style update with advantage = R - V(s).
         (Or we can do multi-step returns. This is minimal for illustration.)
         """
-        # Convert buffers to tensors
-        rewards_t = torch.FloatTensor(self.rewards)
-        values_t = torch.FloatTensor(self.values)
-        dones_t = torch.FloatTensor(self.dones)
+        # Convert buffers to tensors (fix)
+        states_t = torch.tensor(self.states, dtype=torch.float32)  # Use torch.tensor, not FloatTensor
+        rewards_t = torch.tensor(self.rewards, dtype=torch.float32)
+        values_t = torch.tensor(self.values, dtype=torch.float32)
+        dones_t = torch.tensor(self.dones, dtype=torch.float32)
 
-        # We will do a simple "discounted sum" approach from each step to the end
+        # Compute returns and advantages
         returns = []
         G = 0
         for r, d in zip(reversed(self.rewards), reversed(self.dones)):
             if d:
-                G = 0  # reset on done
+                G = 0  # Reset on episode end
             G = r + self.gamma * G
             returns.insert(0, G)
-        returns_t = torch.FloatTensor(returns)
+        returns_t = torch.tensor(returns, dtype=torch.float32)
 
         # Advantage
         advantages = returns_t - values_t
 
-        # Re-run forward pass to get mean_action + values (for logprob & such)
+# Re-run forward pass to get mean_action + values (for logprob & such)
         states_t = torch.FloatTensor(self.states)
         mean_action_batch, value_batch = self.model(states_t)
 

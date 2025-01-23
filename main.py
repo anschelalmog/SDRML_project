@@ -2,8 +2,8 @@
 import yaml
 import wandb
 import argparse
-from train import train
-from utils import set_global_seed
+from src.train import train
+from src.utils import set_global_seed
 
 def main():
     # Command-line args (optional)

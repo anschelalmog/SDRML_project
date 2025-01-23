@@ -4,8 +4,8 @@ import numpy as np
 import wandb
 import gym
 
-from agent import Agent
-from environment import BatteryEnv
+from .agent import Agent
+from .enviorment import BatteryEnv
 
 def train(config):
     # Create environment
