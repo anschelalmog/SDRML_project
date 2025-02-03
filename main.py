@@ -1,5 +1,5 @@
+import gym
 import rl_project.utils as utl
-from rl_project.environment import ElectricityMarketEnv
 from rl_project.agent import Agent
 from rl_project.trainer import Trainer, evaluate
 
@@ -7,17 +7,15 @@ from rl_project.trainer import Trainer, evaluate
 def main():
     args = utl.parse_args()
     utl.set_run(args)
+    utl.register_env()
 
     # Initialize environment and agent
-    electricity_market = ElectricityMarketEnv(args)
-    electricity_player = Agent(args)
+    electricity_market = gym.make('ElectricityMarket-v0')
+    market_player = Agent(args, electricity_market)
 
     # Train the agent
-    trainer = Trainer(env=electricity_market,
-                      agent=electricity_player,
-                      args=args)
-
-    trainer.train()
+    trainer = Trainer(args).train(env=electricity_market,
+                                  agent=market_player)
 
     # evaluation
     evaluate(trainer)
