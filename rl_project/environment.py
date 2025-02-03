@@ -1,228 +1,282 @@
 import gym
-import numpy as np
 from gym import spaces
+import numpy as np
+from gym.utils import seeding
+from rl_project.utils import  get_logger
 
+logger = get_logger()
 
 class ElectricityMarketEnv(gym.Env):
     """
-    A custom Environment for an Electricity Market RL problem with battery storage.
-    -------------------------------------------------------------------------------
-    STATE:
-        [SoC, Demand, Price]
-        - SoC: State of Charge of the battery (0 <= SoC <= battery_capacity)
-        - Demand: The electricity demand at the current timestep
-        - Price: The electricity price at the current timestep
+    A custom Gym environment for simulating an electricity market with a battery storage system.
 
-    ACTION (continuous):
-        action in [-battery_capacity, +battery_capacity]
-        - Negative values (<=0) mean "charge" the battery.
-        - Positive values (>=0) mean "discharge" the battery.
+    The agent can take continuous actions representing charging (positive values) or discharging (negative values)
+    of a battery. The environment models the dynamics of household electricity demand and market price, both of which
+    follow periodic functions with noise. The reward is computed based on the selected reward function.
 
-    REWARD:
-        Three possible reward modes are supported (choose with 'reward_mode'):
-          1) 'profit_only'
-             reward = (energy_sold_to_grid) * (price)
-               where energy_sold_to_grid = max(0, discharge_after_meeting_demand)
+    State:
+        - SoC: State of Charge (current energy level in the battery)
+        - Dt: Household electricity demand at the current timestep
+        - Pt: Market price of electricity at the current timestep
 
-          2) 'profit_with_unmet_penalty'
-             reward = (energy_sold_to_grid) * (price) - penalty_unmet * (unmet_demand > 0)
-               i.e., if demand couldn't be met from SoC, penalize.
+    Action:
+        - Continuous value in [-battery_capacity, battery_capacity]
+            Positive action: Charging the battery.
+            Negative action: Discharging the battery.
 
-          3) 'profit_minus_battery_degradation'
-             reward = (energy_sold_to_grid) * (price) - alpha * (abs(charge_action))
-               i.e., we penalize the battery usage to reflect degradation costs
-               (both for charging and discharging).
+    Reward (Options):
+        1. "profit" (default):
+           Reward = \( P_t \times \text{sold\_energy} \)
+           Rewards the agent solely based on the revenue generated from selling surplus energy after meeting demand.
 
-    EPISODE:
-      - Single episode runs for self.max_steps steps or until done.
-      - We add a time index that increments at each step.
+        2. "penalty_unmet":
+           Reward = \( P_t \times (\text{discharge\_amount}) - \lambda \times \max(0, D_t - \text{discharge\_amount}) \)
+           Rewards all discharged energy but applies a penalty for any portion of household demand that is not met.
+           (This encourages the agent to prioritize internal demand.)
+
+        3. "degradation":
+           Reward = \( P_t \times (\text{sold\_energy}) - c \times (\text{discharge\_amount}) \)
+           Rewards surplus energy sold while subtracting a cost proportional to the total discharged energy to account for battery degradation.
     """
 
-    def __init__(self, args):
-        """
-        Args:
-            battery_capacity (float): Maximum battery storage capacity.
-            max_steps (int): Number of steps per episode.
-            reward_mode (str): Choose from ['profit_only',
-                                           'profit_with_unmet_penalty',
-                                           'profit_minus_battery_degradation'].
-            penalty_unmet (float): Penalty value for unmet demand (used in 'profit_with_unmet_penalty').
-            alpha (float): Battery usage cost coefficient (used in 'profit_minus_battery_degradation').
-            seed (int): Random seed.
-        """
+    def __init__(self, args=None):
         super(ElectricityMarketEnv, self).__init__()
 
-        # Environment parameters
-        self.battery_capacity = args.get('battery_capacity', 100.0)
-        self.max_steps = args.get('max_steps', 100)
-        self.reward_mode = args.get('reward_mode', 'profit_only')
-        self.penalty_unmet = args.get('penalty_unmet', 50.0)
-        self.alpha = args.get('alpha', 0.05)
-        self.seed(args.get('seed', 42))
+        # --------------------------
+        # Battery parameters
+        # --------------------------
+        self.battery_capacity = 100.0  # Maximum energy that can be stored in the battery (e.g., in kWh)
+        self.initial_soc = 50.0        # Initial State of Charge (SoC)
+        self.soc = self.initial_soc    # Current SoC
 
-        # continuous 1D action space in [-battery_capacity, +battery_capacity]
+        # --------------------------
+        # Environment dynamics parameters
+        # --------------------------
+        self.max_steps = 200           # Total timesteps in one episode
+        self.current_step = 0          # Timestep counter
+
+        # --------------------------
+        # Define the action space.
+        # The agent's action is a continuous value in [-battery_capacity, battery_capacity].
+        # A positive value represents charging and a negative value represents discharging.
+        # --------------------------
         self.action_space = spaces.Box(low=-self.battery_capacity,
                                        high=self.battery_capacity,
-                                       shape=(1,), dtype=np.float32)
+                                       shape=(1,),
+                                       dtype=np.float32)
 
-        # continuous 3D state space: [SoC in [0, battery_capacity], Demand >= 0, Price >= 0]
-        # We'll put an upper bound on Demand and Price for safety, though in principle they can be large.
-        self.state_space = spaces.Box(low=np.array([0.0, 0.0, 0.0], dtype=np.float32),
-                                      high=np.array([self.battery_capacity, 1e6, 1e6], dtype=np.float32),
-                                      dtype=np.float32)
+        # --------------------------
+        # Define the observation space.
+        # The state consists of [SoC, Demand, Price].
+        # SoC is bounded between 0 and battery_capacity.
+        # Demand and Price are non-negative; we use a very high upper bound.
+        # --------------------------
+        obs_low = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+        obs_high = np.array([self.battery_capacity, np.finfo(np.float32).max, np.finfo(np.float32).max], dtype=np.float32)
+        self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
 
-        # Internal variables
-        self.soc, self.demand, self.price, self.current_step = None, None, None, 0
+        # --------------------------
+        # Reward function selection.
+        # Default is "profit", but you can choose "penalty_unmet" or "degradation" via the args parameter.
+        # --------------------------
+        self.reward_type = "profit"
+        if args is not None and hasattr(args, 'reward_type'):
+            self.reward_type = args.reward_type
+            logger.info(f"ElectricityMarketEnv initialized with battery_capacity={self.battery_capacity}, initial_soc={self.initial_soc}, max_steps={self.max_steps}, reward_type={self.reward_type}")
 
-        # Pre-generate demand & price for the entire episode (or regenerate on each reset)
-        self.demand_profile, self.price_profile = None, None
+    # --------------------------
+        # Set the random seed for reproducibility.
+        # --------------------------
+        self.seed()
 
     def seed(self, seed=None):
-        """Sets the random seed for reproducibility."""
-        self.np_random, seed = gym.utils.seeding.np_random(seed)
+        """
+        Set the seed for random number generation.
+        """
+        self.np_random, seed = seeding.np_random(seed)
         return [seed]
-
-    def _generate_demand(self, t_normalized):
-        """
-        Periodic demand function with two peaks + noise.
-        For example: f(t) = 100 * exp(-(t - 0.4)^2 / (2 * 0.05^2))
-                       + 120 * exp(-(t - 0.7)^2 / (2 * 0.1^2))
-                     + some random noise
-        """
-        val1 = 100 * np.exp(-((t_normalized - 0.4) ** 2) / (2 * (0.05 ** 2)))
-        val2 = 120 * np.exp(-((t_normalized - 0.7) ** 2) / (2 * (0.1 ** 2)))
-        noise = self.np_random.normal(0, 3)  # small noise
-        return max(0.0, val1 + val2 + noise)
-
-    def _generate_price(self, t_normalized):
-        """
-        Periodic price function with two peaks + noise.
-        For example, we can shift amplitudes or frequencies to represent price changes over the day.
-        """
-        # We'll do something slightly simpler but similarly shaped.
-        val1 = 50 * np.exp(-((t_normalized - 0.3) ** 2) / (2 * (0.06 ** 2)))
-        val2 = 70 * np.exp(-((t_normalized - 0.8) ** 2) / (2 * (0.08 ** 2)))
-        noise = self.np_random.normal(0, 2)  # small noise
-        return max(0.0, val1 + val2 + noise)
 
     def reset(self):
         """
-        Resets the environment to an initial state.
+        Reset the environment to the initial state at the start of an episode.
         """
+        self.soc = self.initial_soc
         self.current_step = 0
+        logger.info(f"Environment reset: initial SoC={self.soc}")
+        return self._get_obs()
 
-        # Generate new demand & price profiles for the entire episode
-        time_indices = np.linspace(0, 1, self.max_steps)
-        self.demand_profile = [self._generate_demand(tn) for tn in time_indices]
-        self.price_profile = [self._generate_price(tn) for tn in time_indices]
+    def _get_obs(self):
+        """
+        Construct the current observation.
+        The observation includes the current SoC, the demand, and the price.
+        Demand and price are functions of normalized time.
+        """
+        t_norm = self.current_step / self.max_steps  # Normalized time [0, 1]
+        demand = self._demand_function(t_norm)
+        price = self._price_function(t_norm)
+        obs = np.array([self.soc, demand, price], dtype=np.float32)
+        logger.debug(f"Observation: SoC={self.soc}, Demand={demand:.2f}, Price={price:.2f}")
+        return obs
 
-        # Initialize battery SoC at half capacity (arbitrary choice)
-        self.soc = self.battery_capacity / 2.0
+    def _demand_function(self, t):
+        """
+        Compute the household electricity demand at time t.
 
-        # Get initial demand and price
-        self.demand = self.demand_profile[self.current_step]
-        self.price = self.price_profile[self.current_step]
+        The demand function is modeled as a combination of two Gaussian functions:
 
-        return self._get_observation()
+        \[
+        f_D(t) = 100 \cdot \exp\left(-\frac{(t-0.4)^2}{2 \cdot (0.05)^2}\right)
+                + 120 \cdot \exp\left(-\frac{(t-0.7)^2}{2 \cdot (0.1)^2}\right)
+        \]
 
-    def _get_observation(self):
-        return np.array([self.soc, self.demand, self.price], dtype=np.float32)
+        A small Gaussian noise (mean 0, std 5.0) is added to simulate randomness.
+        """
+        base_demand = (100.0 * np.exp(-((t - 0.4)**2) / (2 * (0.05**2))) +
+                       120.0 * np.exp(-((t - 0.7)**2) / (2 * (0.1**2))))
+        noise = self.np_random.normal(0, 5.0)  # Noise term
+        demand = max(base_demand + noise, 0.0)   # Ensure demand is non-negative
+        logger.debug(f"Computed demand={demand:.2f} at t={t:.2f}")
+
+        return demand
+
+    def _price_function(self, t):
+        """
+        Compute the market price of electricity at time t.
+
+        The price function is modeled as a combination of two Gaussian functions:
+
+        \[
+        f_P(t) = 50 \cdot \exp\left(-\frac{(t-0.3)^2}{2 \cdot (0.07)^2}\right)
+                + 80 \cdot \exp\left(-\frac{(t-0.8)^2}{2 \cdot (0.08)^2}\right)
+        \]
+
+        A small Gaussian noise (mean 0, std 2.0) is added to simulate randomness.
+        """
+        base_price = (50.0 * np.exp(-((t - 0.3)**2) / (2 * (0.07**2))) +
+                      80.0 * np.exp(-((t - 0.8)**2) / (2 * (0.08**2))))
+        noise = self.np_random.normal(0, 2.0)  # Noise term
+        price = max(base_price + noise, 0.0)     # Ensure price is non-negative
+        logger.debug(f"Computed price={price:.2f} at t={t:.2f}")
+        return price
 
     def step(self, action):
         """
-        Executes the action and updates the environment state.
-        Args:
-            action (float): The chosen action in [-battery_capacity, battery_capacity].
-                            Positive => discharge, Negative => charge.
+        Execute one timestep in the environment.
+
+        Parameters:
+            action (array): A 1D numpy array with one element representing the
+                            amount of energy to charge (positive) or discharge (negative).
+
         Returns:
-            observation (np.array): The next observation [SoC, demand, price].
-            reward (float): The immediate reward.
+            obs (array): Next observation ([SoC, demand, price]).
+            reward (float): Reward earned this timestep.
             done (bool): Whether the episode has ended.
-            info (dict): Extra diagnostic information.
+            info (dict): Additional info (empty in this implementation).
         """
-        action_value = np.clip(action, -self.battery_capacity, self.battery_capacity)
+        # Clip the action within allowed bounds.
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        action_value = action[0]  # Extract scalar from array
+        info = {}
 
-        # Battery update
-        # If action_value > 0 => Discharge
-        # If action_value < 0 => Charge
-        # Ensure SoC remains in [0, battery_capacity]
+        # Compute current demand and price based on normalized time.
+        t_norm = self.current_step / self.max_steps
+        demand = self._demand_function(t_norm)
+        price = self._price_function(t_norm)
 
-        old_soc = self.soc
         if action_value >= 0:
-            # Discharging
-            discharge_amount = min(action_value, self.soc)
-            self.soc -= discharge_amount
-        else:
-            # Charging
-            charge_amount = min(-action_value, self.battery_capacity - self.soc)
+            # --------------------------
+            # Charging the battery.
+            # The battery cannot be charged beyond its capacity.
+            # --------------------------
+            charge_amount = min(action_value, self.battery_capacity - self.soc)
             self.soc += charge_amount
+            reward = 0.0  # No immediate reward for charging
+            logger.info(f"Step {self.current_step}: Charging battery by {charge_amount:.2f} kWh, New SoC={self.soc:.2f}")
 
-        # Now compute how much power is used to meet demand
-        # If we are discharging, we meet demand first from 'discharge_amount'
-        # leftover = discharge_amount - demand
-        # if leftover > 0 => sold to grid
-        # if leftover < 0 => unmet demand (if the environment requires penalizing that)
-
-        if action_value > 0:
-            # Discharging portion
-            discharge_amount = old_soc - self.soc  # how much we actually discharged
-            if discharge_amount >= self.demand:
-                # Demand is fully met
-                leftover = discharge_amount - self.demand
-                unmet_demand = 0.0
-            else:
-                # Demand is not fully met
-                leftover = 0.0
-                unmet_demand = self.demand - discharge_amount
         else:
-            # If we are charging or action_value <= 0, we do not discharge for demand
-            # So if there's demand, it's not met from the battery
-            leftover = 0.0
-            unmet_demand = self.demand
+            # --------------------------
+            # Discharging the battery.
+            # First, limit the discharge to the available energy in the battery.
+            # --------------------------
+            discharge_requested = -action_value  # Convert to a positive value
+            discharge_possible = min(discharge_requested, self.soc)
+            self.soc -= discharge_possible
 
-        # Calculate reward based on the chosen reward mode
-        reward = self._calculate_reward(leftover, unmet_demand, action_value)
+            # --------------------------
+            # Use discharged energy to meet the household demand.
+            # Any energy beyond meeting the demand is sold to the grid.
+            # --------------------------
+            if discharge_possible >= demand:
+                sold_energy = discharge_possible - demand
+            else:
+                sold_energy = 0.0  # Not enough to cover demand, so nothing is sold
 
-        # Step forward in time
+            # Compute reward based on the chosen reward function.
+            reward = self._compute_reward(demand, sold_energy, price, discharge_possible)
+            logger.info(f"Step {self.current_step}: Discharged {discharge_possible:.2f} kWh, Demand={demand:.2f}, Sold Energy={sold_energy:.2f}, Reward={reward:.2f}")
+
+
         self.current_step += 1
-
-        # Check if we reached the end of the episode
         done = self.current_step >= self.max_steps
 
-        # Update next state if not done
-        if not done:
-            self.demand = self.demand_profile[self.current_step]
-            self.price = self.price_profile[self.current_step]
+        # Construct the next observation.
+        obs = np.array([self.soc, demand, price], dtype=np.float32)
 
-        return self._get_observation(), reward, done, {}
+        return obs, reward, done, info
 
-    def _calculate_reward(self, leftover, unmet_demand, action_value):
+    def _compute_reward(self, demand, sold_energy, price, discharge_amount):
         """
-        Computes the reward depending on the selected reward mode.
+        Compute the reward based on the selected reward function.
+
+        Three reward functions are available:
+
+        1. "profit" (default):
+            Reward = \( \text{price} \times \text{sold\_energy} \)
+
+            This function rewards the agent solely based on the revenue generated
+            from selling surplus energy to the grid after meeting demand.
+
+        2. "penalty_unmet":
+            Reward = \( \text{price} \times \text{discharge\_amount} - \lambda \times \max(0, \text{demand} - \text{discharge\_amount}) \)
+
+            Here, the agent earns revenue for all discharged energy but is penalized
+            for any portion of household demand that is not met. This encourages the agent
+            to ensure that the internal demand is satisfied before selling energy.
+
+        3. "degradation":
+            Reward = \( \text{price} \times \text{sold\_energy} - c \times \text{discharge\_amount} \)
+
+            This reward takes into account battery degradation. While the agent earns revenue
+            for selling surplus energy, it incurs a cost proportional to the discharged energy,
+            which simulates battery wear-and-tear and encourages cautious discharging.
         """
-        energy_sold_to_grid = leftover
-        price = self.price
+        if self.reward_type == "profit":
+            # --------------------------
+            # Reward function 1: Profit Reward (default)
+            # --------------------------
+            return price * sold_energy
 
-        if self.reward_mode == 'profit_only':
-            # Reward is simply leftover * price
-            reward = energy_sold_to_grid * price
+        elif self.reward_type == "penalty_unmet":
+            # --------------------------
+            # Reward function 2: Penalize Unmet Demand.
+            # --------------------------
+            penalty = 10.0  # Penalty coefficient (tunable)
+            unmet_demand = max(0.0, demand - discharge_amount)
+            return price * discharge_amount - penalty * unmet_demand
 
-        elif self.reward_mode == 'profit_with_unmet_penalty':
-            # Subtract penalty if there's any unmet demand
-            # (If unmet_demand > 0, we apply a penalty once, ignoring the exact amount.)
-            penalty = self.penalty_unmet if unmet_demand > 0 else 0.0
-            reward = (energy_sold_to_grid * price) - penalty
-
-        elif self.reward_mode == 'profit_minus_battery_degradation':
-            # We penalize battery usage
-            usage_cost = self.alpha * abs(action_value)
-            reward = (energy_sold_to_grid * price) - usage_cost
+        elif self.reward_type == "degradation":
+            # --------------------------
+            # Reward function 3: Battery Degradation Cost Aware.
+            # --------------------------
+            degradation_cost = 0.5  # Cost per unit of discharged energy (tunable)
+            return price * sold_energy - degradation_cost * discharge_amount
 
         else:
-            raise ValueError(f"Invalid reward_mode selected: {self.reward_mode}")
-
-        return reward
+            # Fallback to default profit reward if an unknown reward type is provided.
+            return price * sold_energy
 
     def render(self, mode='human'):
-        """Optional: Provide visualization if needed."""
-        print(f"Step: {self.current_step}, SoC: {self.soc:.2f}, Demand: {self.demand:.2f}, Price: {self.price:.2f}")
+        """
+        Render the current state of the environment.
+        """
+        print(f"Step: {self.current_step}, SoC: {self.soc:.2f}")

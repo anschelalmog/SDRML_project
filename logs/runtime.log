@@ -1,0 +1,28 @@
+2025-02-03 22:33:31.110 | INFO     | __main__:main:13 - Initialize electricity market simulation
+2025-02-03 22:33:52.502 | INFO     | __main__:main:13 - Initialize electricity market simulation
+2025-02-03 22:33:56.251 | INFO     | __main__:main:19 - Initialize agent training
+2025-02-03 22:33:56.252 | INFO     | rl_project.environment:reset:105 - Environment reset: initial SoC=50.0
+2025-02-03 22:33:56.253 | DEBUG    | rl_project.environment:_demand_function:138 - Computed demand=11.00 at t=0.00
+2025-02-03 22:33:56.253 | DEBUG    | rl_project.environment:_price_function:159 - Computed price=1.77 at t=0.00
+2025-02-03 22:33:56.253 | DEBUG    | rl_project.environment:_get_obs:118 - Observation: SoC=50.0, Demand=11.00, Price=1.77
+2025-02-03 22:33:56.256 | DEBUG    | rl_project.environment:_demand_function:138 - Computed demand=2.43 at t=0.00
+2025-02-03 22:33:56.256 | DEBUG    | rl_project.environment:_price_function:159 - Computed price=0.00 at t=0.00
+2025-02-03 22:33:56.256 | INFO     | rl_project.environment:step:216 - Step 0: Discharged 50.00 kWh, Demand=2.43, Sold Energy=47.57, Reward=0.00
+2025-02-03 22:34:12.395 | INFO     | __main__:main:13 - Initialize electricity market simulation
+2025-02-03 22:34:14.885 | INFO     | __main__:main:19 - Initialize agent training
+2025-02-03 22:34:14.886 | INFO     | rl_project.environment:reset:105 - Environment reset: initial SoC=50.0
+2025-02-03 22:34:14.886 | DEBUG    | rl_project.environment:_demand_function:138 - Computed demand=0.00 at t=0.00
+2025-02-03 22:34:14.886 | DEBUG    | rl_project.environment:_price_function:159 - Computed price=1.12 at t=0.00
+2025-02-03 22:34:14.886 | DEBUG    | rl_project.environment:_get_obs:118 - Observation: SoC=50.0, Demand=0.00, Price=1.12
+2025-02-03 22:34:14.891 | DEBUG    | rl_project.environment:_demand_function:138 - Computed demand=2.35 at t=0.00
+2025-02-03 22:34:14.891 | DEBUG    | rl_project.environment:_price_function:159 - Computed price=0.08 at t=0.00
+2025-02-03 22:34:14.891 | INFO     | rl_project.environment:step:216 - Step 0: Discharged 50.00 kWh, Demand=2.35, Sold Energy=47.65, Reward=3.58
+2025-02-03 22:35:56.112 | INFO     | __main__:main:13 - Initialize electricity market simulation
+2025-02-03 22:36:08.924 | INFO     | __main__:main:19 - Initialize agent training
+2025-02-03 22:36:08.935 | INFO     | rl_project.environment:reset:105 - Environment reset: initial SoC=50.0
+2025-02-03 22:36:08.935 | DEBUG    | rl_project.environment:_demand_function:138 - Computed demand=0.00 at t=0.00
+2025-02-03 22:36:08.935 | DEBUG    | rl_project.environment:_price_function:159 - Computed price=1.14 at t=0.00
+2025-02-03 22:36:08.935 | DEBUG    | rl_project.environment:_get_obs:118 - Observation: SoC=50.0, Demand=0.00, Price=1.14
+2025-02-03 22:36:30.327 | DEBUG    | rl_project.environment:_demand_function:138 - Computed demand=0.00 at t=0.00
+2025-02-03 22:36:40.681 | DEBUG    | rl_project.environment:_price_function:159 - Computed price=0.00 at t=0.00
+2025-02-03 22:36:59.536 | INFO     | rl_project.environment:step:216 - Step 0: Discharged 50.00 kWh, Demand=0.00, Sold Energy=50.00, Reward=0.00
