@@ -37,7 +37,7 @@ class Trainer:
         self.agent = agent
 
         for episode in range(1, self.episodes + 1):
-            state = self.env.reset()
+            state, _ = self.env.reset()
             done = False
             episode_reward = 0.0
             episode_steps = 0
@@ -50,11 +50,13 @@ class Trainer:
             while not done:
                 # Select action (with exploration noise)
                 action = self.agent.select_action(state, evaluate=False)
-
+                step_result = env.step(action)
+                if len(step_result) == 5:
+                    next_state, reward, terminated, truncated, info = step_result
+                    done = terminated or truncated
+                else:
+                    next_state, reward, done, info = step_result
                 # Step the environment while handling different Gym versions.
-                result = self.env.step(action)
-                next_state, reward, done, info = result
-
                 # Store transition in the replay buffer
                 # (Pass each argument separately to match the agent's store_transition signature.)
                 self.agent.store_transition(state, action, reward, next_state, float(done))
@@ -166,7 +168,7 @@ def evaluate(trainer, eval_episodes=10):
     """
     returns = []
     for _ in range(eval_episodes):
-        state = trainer.env.reset()
+        state, _ = trainer.env.reset()
         done = False
         total_reward = 0.0
         while not done:

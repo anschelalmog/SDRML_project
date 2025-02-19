@@ -1,10 +1,11 @@
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 import numpy as np
-from gym.utils import seeding
-from rl_project.utils import  get_logger
+from gymnasium.utils import seeding
+from rl_project.utils import get_logger
 
 logger = get_logger()
+
 
 class ElectricityMarketEnv(gym.Env):
     """
@@ -46,14 +47,14 @@ class ElectricityMarketEnv(gym.Env):
         # Battery parameters
         # --------------------------
         self.battery_capacity = 100.0  # Maximum energy that can be stored in the battery (e.g., in kWh)
-        self.initial_soc = 50.0        # Initial State of Charge (SoC)
-        self.soc = self.initial_soc    # Current SoC
+        self.initial_soc = 50.0  # Initial State of Charge (SoC)
+        self.soc = self.initial_soc  # Current SoC
 
         # --------------------------
         # Environment dynamics parameters
         # --------------------------
-        self.max_steps = 200           # Total timesteps in one episode
-        self.current_step = 0          # Timestep counter
+        self.max_steps = 200  # Total timesteps in one episode
+        self.current_step = 0  # Timestep counter
 
         # --------------------------
         # Define the action space.
@@ -72,7 +73,8 @@ class ElectricityMarketEnv(gym.Env):
         # Demand and Price are non-negative; we use a very high upper bound.
         # --------------------------
         obs_low = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-        obs_high = np.array([self.battery_capacity, np.finfo(np.float32).max, np.finfo(np.float32).max], dtype=np.float32)
+        obs_high = np.array([self.battery_capacity, np.finfo(np.float32).max, np.finfo(np.float32).max],
+                            dtype=np.float32)
         self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
 
         # --------------------------
@@ -82,9 +84,10 @@ class ElectricityMarketEnv(gym.Env):
         self.reward_type = "profit"
         if args is not None and hasattr(args, 'reward_type'):
             self.reward_type = args.reward_type
-            logger.info(f"ElectricityMarketEnv initialized with battery_capacity={self.battery_capacity}, initial_soc={self.initial_soc}, max_steps={self.max_steps}, reward_type={self.reward_type}")
+            logger.info(
+                f"ElectricityMarketEnv initialized with battery_capacity={self.battery_capacity}, initial_soc={self.initial_soc}, max_steps={self.max_steps}, reward_type={self.reward_type}")
 
-    # --------------------------
+        # --------------------------
         # Set the random seed for reproducibility.
         # --------------------------
         self.seed()
@@ -96,14 +99,16 @@ class ElectricityMarketEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def reset(self):
+    def reset(self, seed=42, options=None):
         """
         Reset the environment to the initial state at the start of an episode.
+        Returns a tuple (observation, info) as required by Gymnasium.
         """
         self.soc = self.initial_soc
         self.current_step = 0
         logger.info(f"Environment reset: initial SoC={self.soc}")
-        return self._get_obs()
+        obs = self._get_obs()
+        return obs, {}
 
     def _get_obs(self):
         """
@@ -131,10 +136,10 @@ class ElectricityMarketEnv(gym.Env):
 
         A small Gaussian noise (mean 0, std 5.0) is added to simulate randomness.
         """
-        base_demand = (100.0 * np.exp(-((t - 0.4)**2) / (2 * (0.05**2))) +
-                       120.0 * np.exp(-((t - 0.7)**2) / (2 * (0.1**2))))
+        base_demand = (100.0 * np.exp(-((t - 0.4) ** 2) / (2 * (0.05 ** 2))) +
+                       120.0 * np.exp(-((t - 0.7) ** 2) / (2 * (0.1 ** 2))))
         noise = self.np_random.normal(0, 5.0)  # Noise term
-        demand = max(base_demand + noise, 0.0)   # Ensure demand is non-negative
+        demand = max(base_demand + noise, 0.0)  # Ensure demand is non-negative
         logger.debug(f"Computed demand={demand:.2f} at t={t:.2f}")
 
         return demand
@@ -152,10 +157,10 @@ class ElectricityMarketEnv(gym.Env):
 
         A small Gaussian noise (mean 0, std 2.0) is added to simulate randomness.
         """
-        base_price = (50.0 * np.exp(-((t - 0.3)**2) / (2 * (0.07**2))) +
-                      80.0 * np.exp(-((t - 0.8)**2) / (2 * (0.08**2))))
+        base_price = (50.0 * np.exp(-((t - 0.3) ** 2) / (2 * (0.07 ** 2))) +
+                      80.0 * np.exp(-((t - 0.8) ** 2) / (2 * (0.08 ** 2))))
         noise = self.np_random.normal(0, 2.0)  # Noise term
-        price = max(base_price + noise, 0.0)     # Ensure price is non-negative
+        price = max(base_price + noise, 0.0)  # Ensure price is non-negative
         logger.debug(f"Computed price={price:.2f} at t={t:.2f}")
         return price
 
@@ -191,7 +196,8 @@ class ElectricityMarketEnv(gym.Env):
             charge_amount = min(action_value, self.battery_capacity - self.soc)
             self.soc += charge_amount
             reward = 0.0  # No immediate reward for charging
-            logger.info(f"Step {self.current_step}: Charging battery by {charge_amount:.2f} kWh, New SoC={self.soc:.2f}")
+            logger.info(
+                f"Step {self.current_step}: Charging battery by {charge_amount:.2f} kWh, New SoC={self.soc:.2f}")
 
         else:
             # --------------------------
@@ -213,16 +219,19 @@ class ElectricityMarketEnv(gym.Env):
 
             # Compute reward based on the chosen reward function.
             reward = self._compute_reward(demand, sold_energy, price, discharge_possible)
-            logger.info(f"Step {self.current_step}: Discharged {discharge_possible:.2f} kWh, Demand={demand:.2f}, Sold Energy={sold_energy:.2f}, Reward={reward:.2f}")
-
+            logger.info(
+                f"Step {self.current_step}: Discharged {discharge_possible:.2f} kWh, Demand={demand:.2f}, Sold Energy={sold_energy:.2f}, Reward={reward:.2f}")
 
         self.current_step += 1
         done = self.current_step >= self.max_steps
 
+        terminated = False
+        truncated = done  # Consider ending due to time limit as truncation
+
         # Construct the next observation.
         obs = np.array([self.soc, demand, price], dtype=np.float32)
 
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def _compute_reward(self, demand, sold_energy, price, discharge_amount):
         """

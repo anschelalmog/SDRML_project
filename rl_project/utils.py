@@ -8,7 +8,7 @@ from datetime import datetime
 # from torch.utils.tensorboard import SummaryWriter
 import subprocess
 import sys
-from gym.envs.registration import register
+from gymnasium.envs.registration import register
 import matplotlib.pyplot as plt
 from loguru import logger
 
@@ -27,11 +27,10 @@ from loguru import logger
 #         print("TensorBoard is not installed. Install it with 'pip install tensorboard'.")
 
 
-
-# Configure Loguru
+runtime_log_filename = datetime.now().strftime("logs/runtime_%d_%m_%Y_%H_%M.log")
 logger.remove()  # Remove default handler
-logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
-logger.add("logs/runtime.log", rotation="10MB", level="DEBUG")  # Log to file
+# logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
+logger.add(runtime_log_filename, rotation="10MB", level="TRACE")  # Log to file
 
 def get_logger():
     return logger

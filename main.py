@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import rl_project.utils as utl
 from rl_project.agent import Agent
 from rl_project.trainer import Trainer, evaluate
