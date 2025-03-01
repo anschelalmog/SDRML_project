@@ -28,6 +28,7 @@ The main contribution is the development of a **Lookahead Critic** using **TD(n)
 
 Our experiments reveal several insights:
 - The lookahead critic substantially improves learning stability and performance in environments with Gaussian demand patterns
+- The lookahead critic also shows modest improvements in environments with sinusoidal demand patterns, as evidenced by better evaluation metrics
 - Performance varies across different demand types, with some configurations maximizing profit while others demonstrating more stable behavior
 
 ![Accumulative Rewards Comparison](assets/accumulative_rewards.png)
@@ -45,6 +46,7 @@ Our experiments reveal several insights:
 | Standard  | Sinusoidal| 20.25        | 128.49      | 521.23             |
 | Lookahead | Sinusoidal| -1.02        | 66.71       | 562.42             |
 
+*Note: While training rewards (Avg Reward) for the Lookahead agent appear lower in the Sinusoidal case, the evaluation metrics (Avg Reward Eval) show it slightly outperforms the Standard agent, which better reflects actual performance after training is complete.*
 ## Project Structure
 
 ```
