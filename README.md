@@ -123,5 +123,10 @@ For the complete source code and documentation, visit our [GitHub Repository](ht
 - Almog Anschel
 - Eden Hindi
 
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+## References
+
+CLAIR-LAB TECHNION. "SDMRL - Course Material." 2024. GitHub Repository. Available at: https://github.com/CLAIR-LAB-TECHNION/SDMRL
+
+Haarnoja, Tuomas, Aurick Zhou, Pieter Abbeel, and Sergey Levine. "Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor." arXiv preprint arXiv:1801.01290, 2018.
+
+De Asis, Kristopher, Juan F. Hernandez-Garcia, G. Zacharias Holland, and Richard S. Sutton. "Multi-Step Reinforcement Learning: A Unifying Algorithm." arXiv preprint arXiv:1703.01327, 2017.
