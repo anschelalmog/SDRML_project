@@ -27,10 +27,8 @@ The main contribution is the development of a **Lookahead Critic** using **TD(n)
 ## Results
 
 Our experiments reveal several insights:
-- The lookahead critic substantially improves learning stability and performance, especially in environments with Gaussian demand patterns
+- The lookahead critic substantially improves learning stability and performance in environments with Gaussian demand patterns
 - Performance varies across different demand types, with some configurations maximizing profit while others demonstrating more stable behavior
-- The approach achieves significantly better cost savings compared to baseline policies
-
 
 ![Accumulative Rewards Comparison](assets/accumulative_rewards.png)
 *Comparison of reward accumulation across different model configurations*
