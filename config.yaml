@@ -1,8 +1,0 @@
-battery_capacity: 100.0    # Maximum battery capacity
-max_steps: 200            # Number of steps in each episode
-episodes: 100             # Number of training episodes
-day_length: 100           # Period for the demand/price functions
-demand_noise_std: 5.0     # Noise std dev for demand
-price_noise_std: 3.0      # Noise std dev for price
-gamma: 0.99               # Discount factor
-lr: 0.001                 # Learning rate
