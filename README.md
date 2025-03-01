@@ -130,5 +130,3 @@ CLAIR-LAB TECHNION. "SDMRL - Course Material." 2024. GitHub Repository. Availabl
 Haarnoja, Tuomas, Aurick Zhou, Pieter Abbeel, and Sergey Levine. "Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor." arXiv preprint arXiv:1801.01290, 2018.
 
 De Asis, Kristopher, Juan F. Hernandez-Garcia, G. Zacharias Holland, and Richard S. Sutton. "Multi-Step Reinforcement Learning: A Unifying Algorithm." arXiv preprint arXiv:1703.01327, 2017.
-
-Banerjee, Chayan, Zhiyong Chen, and Nasimul Noman. "Improved Soft Actor-Critic: Mixing Prioritized Off-Policy Samples with On-Policy Experience." arXiv preprint arXiv:2109.11767, 2021.
